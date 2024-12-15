@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.env
+
+# Project specific
+LibriSpeech/
+output/*
+uploads/*
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# System
+.DS_Store
+Thumbs.db

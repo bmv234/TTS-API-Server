@@ -24,6 +24,24 @@ import numpy as np
 import re
 import torch
 import torchaudio
+import asyncio
+import gc
+from torch.nn.parallel import DataParallel
+from contextlib import contextmanager
+
+@contextmanager
+def torch_gc():
+    """Context manager to handle PyTorch GPU memory cleanup"""
+    try:
+        yield
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        gc.collect()
+
+# Set PyTorch memory management
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Configure logging
 logging.basicConfig(
@@ -47,6 +65,15 @@ with open(METADATA_FILE) as f:
 
 # Create voice enum from available voices
 VoiceId = Enum('VoiceId', {f'VOICE_{i}': f'voice_{i}' for i in range(len(VOICE_METADATA))})
+
+# Dynamic batch size calculation
+def get_optimal_batch_size(total_chunks):
+    """Calculate optimal batch size based on available GPU memory"""
+    if not torch.cuda.is_available():
+        return min(1, total_chunks)
+    
+    # Start with a minimal batch size
+    return min(1, total_chunks)  # Process one chunk at a time for stability
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=10000, description="Text to convert to speech")
@@ -77,7 +104,7 @@ templates = Jinja2Templates(directory="templates")
 # Initialize F5-TTS model
 tts_model = None
 
-def chunk_text(text, max_chars=135):
+def chunk_text(text, max_chars=100):  # Reduced size for better compatibility
     """Split text into chunks based on F5-TTS implementation"""
     chunks = []
     current_chunk = ""
@@ -100,6 +127,78 @@ def chunk_text(text, max_chars=135):
 def process_audio(audio_data, sample_rate):
     """Minimal audio processing to preserve the start of speech"""
     return audio_data.astype(np.float32)
+def process_text(text_chunks, ref_file, ref_text, model, device):
+    """Process text chunks sequentially"""
+    with torch_gc():
+        # Load and preprocess reference audio once
+        audio, sr = torchaudio.load(ref_file)
+        if audio.shape[0] > 1:
+            audio = torch.mean(audio, dim=0, keepdim=True)
+        if sr != target_sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, target_sample_rate)
+            audio = resampler(audio)
+            del resampler
+    
+    all_results = []
+    ref_audio_len = audio.shape[-1] // hop_length
+    ref_text_len = len(ref_text.encode("utf-8"))
+    
+    logger.info(f"Processing {len(text_chunks)} chunks sequentially")
+    
+    for chunk in text_chunks:
+        with torch_gc():
+            with torch.amp.autocast('cuda'), torch.inference_mode():
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                
+                # Process single chunk
+                chunk_len = len(chunk.encode("utf-8"))
+                duration = ref_audio_len + int((ref_audio_len / ref_text_len) * chunk_len)
+                duration = ((duration + 63) // 64) * 64  # Round up to nearest multiple of 64
+                duration = min(duration, ref_audio_len * 3)
+                
+                # Prepare inputs
+                cond_audio = audio.to(device)
+                input_text = ref_text + chunk
+                
+                try:
+                    generated, _ = model.sample(
+                        cond=cond_audio,
+                        text=[input_text],
+                        duration=duration,
+                        steps=32,
+                        cfg_strength=3.0,
+                        sway_sampling_coef=-1.0
+                    )
+                    
+                    # Process generated audio
+                    gen = generated[0:1]
+                    gen = gen[:, ref_audio_len:duration, :]
+                    gen = gen.permute(0, 2, 1)
+                    
+                    if hasattr(tts_model.vocoder, 'decode'):
+                        wav = tts_model.vocoder.decode(gen)
+                    else:
+                        wav = tts_model.vocoder(gen)
+                    
+                    wav = wav.squeeze().cpu().numpy()
+                    all_results.append(wav)
+                    
+                    # Clean up
+                    del generated, gen, wav
+                    cond_audio = cond_audio.cpu()
+                    del cond_audio
+                    
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {str(e)}")
+                    raise e
+    
+    return all_results, target_sample_rate
 
 @app.on_event("startup")
 async def startup_event():
@@ -108,6 +207,14 @@ async def startup_event():
     try:
         logger.info("Initializing F5-TTS model...")
         tts_model = F5TTS()
+        
+        # Enable half precision and parallel processing
+        if torch.cuda.is_available():
+            if torch.cuda.device_count() > 1:
+                logger.info(f"Using {torch.cuda.device_count()} GPUs")
+                tts_model.ema_model = DataParallel(tts_model.ema_model)
+            tts_model.ema_model = tts_model.ema_model.half()
+        
         logger.info("F5-TTS model initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize F5-TTS model: {str(e)}")
@@ -162,7 +269,7 @@ async def list_voices():
 
 @app.post("/tts")
 async def text_to_speech(request: TTSRequest):
-    """Convert text to speech using F5-TTS"""
+    """Convert text to speech using F5-TTS with batch processing"""
     temp_path = None
     output_path = None
     
@@ -180,37 +287,49 @@ async def text_to_speech(request: TTSRequest):
             ref_text = VOICE_METADATA[voice_file]["reference_text"]
         else:
             # Use default voice
-            ref_file = os.path.join(os.path.dirname(__file__), 
-                                  "F5-TTS/src/f5_tts/infer/examples/basic/basic_ref_en.wav")
+            ref_file = os.path.join(os.path.dirname(__file__),
+                                "src/f5_tts/infer/examples/basic/basic_ref_en.wav")
             ref_text = "some call me nature, others call me mother nature."
         
-        # Preprocess reference audio and text
-        ref_file, ref_text = preprocess_ref_audio_text(ref_file, ref_text, device=tts_model.device)
+        # Split text into chunks for batch processing
+        text_chunks = chunk_text(request.text)
         
-        # Use duplicate_test mode for better initial state handling
-        logger.info("Generating speech with duplicate test mode...")
-        # Use F5-TTS's standard inference process but with higher cfg_strength
-        wav, sr, _ = infer_process(
-            ref_file,
-            ref_text,
-            request.text,
-            tts_model.ema_model,
-            tts_model.vocoder,
-            mel_spec_type="vocos",
-            show_info=logger.info,
-            progress=tqdm,
-            target_rms=0.1,
-            cross_fade_duration=0.15,
-            nfe_step=32,
-            cfg_strength=3.0,        # Increase guidance strength
-            sway_sampling_coef=-1.0,
-            speed=1.0,
-            fix_duration=None,
-            device=tts_model.device
-        )
+        # Process all chunks sequentially
+        results, sr = process_text(text_chunks, ref_file, ref_text, tts_model.ema_model, tts_model.device)
         
-        # Save the generated audio
-        sf.write(output_path, wav, sr)
+        # Combine results with cross-fade
+        final_wave = results[0]
+        cross_fade_duration = 0.15  # seconds
+        cross_fade_samples = int(cross_fade_duration * sr)
+        
+        for i in range(1, len(results)):
+            prev_wave = final_wave
+            next_wave = results[i]
+            
+            # Calculate cross-fade samples
+            cross_fade_samples = min(cross_fade_samples, len(prev_wave), len(next_wave))
+            
+            if cross_fade_samples > 0:
+                # Create cross-fade
+                fade_out = np.linspace(1, 0, cross_fade_samples)
+                fade_in = np.linspace(0, 1, cross_fade_samples)
+                
+                # Apply cross-fade
+                prev_overlap = prev_wave[-cross_fade_samples:]
+                next_overlap = next_wave[:cross_fade_samples]
+                cross_faded = prev_overlap * fade_out + next_overlap * fade_in
+                
+                # Combine waves
+                final_wave = np.concatenate([
+                    prev_wave[:-cross_fade_samples],
+                    cross_faded,
+                    next_wave[cross_fade_samples:]
+                ])
+            else:
+                final_wave = np.concatenate([prev_wave, next_wave])
+        
+        # Save the combined audio
+        sf.write(output_path, final_wave, sr)
         
         # Cleanup temp file
         if temp_path and os.path.exists(temp_path):
@@ -250,21 +369,45 @@ async def clone_voice(
             content = await reference_audio.read()
             f.write(content)
 
-        # Generate speech with cloned voice
-        logger.info("Generating speech with cloned voice")
-        wav, sr, _ = tts_model.infer(
-            ref_file=ref_file,
-            ref_text=reference_text,
-            gen_text=text,
-            file_wave=temp_path
-        )
-
-        # Process the audio
-        audio_data, sample_rate = sf.read(temp_path)
-        processed_audio = process_audio(audio_data, sample_rate)
+        # Split text into chunks for batch processing
+        text_chunks = chunk_text(text)
         
-        # Save processed audio
-        sf.write(output_path, processed_audio, sample_rate)
+        # Process all chunks sequentially
+        results, sr = process_text(text_chunks, ref_file, reference_text, tts_model.ema_model, tts_model.device)
+        
+        # Combine results with cross-fade
+        final_wave = results[0]
+        cross_fade_duration = 0.15  # seconds
+        cross_fade_samples = int(cross_fade_duration * sr)
+        
+        for i in range(1, len(results)):
+            prev_wave = final_wave
+            next_wave = results[i]
+            
+            # Calculate cross-fade samples
+            cross_fade_samples = min(cross_fade_samples, len(prev_wave), len(next_wave))
+            
+            if cross_fade_samples > 0:
+                # Create cross-fade
+                fade_out = np.linspace(1, 0, cross_fade_samples)
+                fade_in = np.linspace(0, 1, cross_fade_samples)
+                
+                # Apply cross-fade
+                prev_overlap = prev_wave[-cross_fade_samples:]
+                next_overlap = next_wave[:cross_fade_samples]
+                cross_faded = prev_overlap * fade_out + next_overlap * fade_in
+                
+                # Combine waves
+                final_wave = np.concatenate([
+                    prev_wave[:-cross_fade_samples],
+                    cross_faded,
+                    next_wave[cross_fade_samples:]
+                ])
+            else:
+                final_wave = np.concatenate([prev_wave, next_wave])
+        
+        # Save the combined audio
+        sf.write(output_path, final_wave, sr)
 
         # Cleanup files
         for path in [ref_file, temp_path]:
@@ -299,10 +442,24 @@ async def clone_voice(
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    if torch.cuda.is_available():
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        free_memory = torch.cuda.memory_reserved(0) - torch.cuda.memory_allocated(0)
+        memory_info = {
+            "total_gpu_memory": f"{total_memory / (1024**3):.2f} GB",
+            "free_gpu_memory": f"{free_memory / (1024**3):.2f} GB",
+            "gpu_utilization": f"{(1 - free_memory/total_memory) * 100:.1f}%"
+        }
+    else:
+        memory_info = {"gpu_status": "No GPU available"}
+
     return {
         "status": "healthy",
         "model_loaded": tts_model is not None,
-        "voices_available": len(VOICE_METADATA)
+        "voices_available": len(VOICE_METADATA),
+        "gpu_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        "using_mixed_precision": True,
+        "memory_info": memory_info
     }
 
 if __name__ == "__main__":

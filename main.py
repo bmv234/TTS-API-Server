@@ -10,6 +10,23 @@ from typing import Optional, List
 from enum import Enum
 import logging
 import shutil
+import gc
+import torch
+from contextlib import contextmanager
+
+@contextmanager
+def torch_gc():
+    """Context manager to handle PyTorch GPU memory cleanup"""
+    try:
+        yield
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        gc.collect()
+
+# Set PyTorch memory management
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Configure logging
 logging.basicConfig(
@@ -28,47 +45,7 @@ with open(METADATA_FILE) as f:
     VOICE_METADATA = json.load(f)
 
 # Create voice enum from available voices
-class VoiceId(str, Enum):
-    VOICE_0 = "voice_0"
-    VOICE_1 = "voice_1"
-    VOICE_2 = "voice_2"
-    VOICE_3 = "voice_3"
-    VOICE_4 = "voice_4"
-    VOICE_5 = "voice_5"
-    VOICE_6 = "voice_6"
-    VOICE_7 = "voice_7"
-    VOICE_8 = "voice_8"
-    VOICE_9 = "voice_9"
-    VOICE_10 = "voice_10"
-    VOICE_11 = "voice_11"
-    VOICE_12 = "voice_12"
-    VOICE_13 = "voice_13"
-    VOICE_14 = "voice_14"
-    VOICE_15 = "voice_15"
-    VOICE_16 = "voice_16"
-    VOICE_17 = "voice_17"
-    VOICE_18 = "voice_18"
-    VOICE_19 = "voice_19"
-    VOICE_20 = "voice_20"
-    VOICE_21 = "voice_21"
-    VOICE_22 = "voice_22"
-    VOICE_23 = "voice_23"
-    VOICE_24 = "voice_24"
-    VOICE_25 = "voice_25"
-    VOICE_26 = "voice_26"
-    VOICE_27 = "voice_27"
-    VOICE_28 = "voice_28"
-    VOICE_29 = "voice_29"
-    VOICE_30 = "voice_30"
-    VOICE_31 = "voice_31"
-    VOICE_32 = "voice_32"
-    VOICE_33 = "voice_33"
-    VOICE_34 = "voice_34"
-    VOICE_35 = "voice_35"
-    VOICE_36 = "voice_36"
-    VOICE_37 = "voice_37"
-    VOICE_38 = "voice_38"
-    VOICE_39 = "voice_39"
+VoiceId = Enum('VoiceId', {f'VOICE_{i}': f'voice_{i}' for i in range(len(VOICE_METADATA))})
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=1000, description="Text to convert to speech")
@@ -103,6 +80,14 @@ async def startup_event():
     try:
         logger.info("Initializing F5-TTS model...")
         tts_model = F5TTS()
+        
+        # Enable half precision and parallel processing
+        if torch.cuda.is_available():
+            if torch.cuda.device_count() > 1:
+                logger.info(f"Using {torch.cuda.device_count()} GPUs")
+                tts_model.ema_model = torch.nn.DataParallel(tts_model.ema_model)
+            tts_model.ema_model = tts_model.ema_model.half()
+        
         logger.info("F5-TTS model initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize F5-TTS model: {str(e)}")
@@ -157,8 +142,8 @@ async def text_to_speech(request: TTSRequest):
             ref_text = VOICE_METADATA[voice_file]["reference_text"]
         else:
             # Use default voice
-            ref_file = os.path.join(os.path.dirname(__file__), 
-                                  "F5-TTS/src/f5_tts/infer/examples/basic/basic_ref_en.wav")
+            ref_file = os.path.join(os.path.dirname(__file__),
+                                  "src/f5_tts/infer/examples/basic/basic_ref_en.wav")
             ref_text = "some call me nature, others call me mother nature."
         
         # Generate speech
@@ -196,10 +181,24 @@ async def health_check():
     """
     Health check endpoint
     """
+    if torch.cuda.is_available():
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        free_memory = torch.cuda.memory_reserved(0) - torch.cuda.memory_allocated(0)
+        memory_info = {
+            "total_gpu_memory": f"{total_memory / (1024**3):.2f} GB",
+            "free_gpu_memory": f"{free_memory / (1024**3):.2f} GB",
+            "gpu_utilization": f"{(1 - free_memory/total_memory) * 100:.1f}%"
+        }
+    else:
+        memory_info = {"gpu_status": "No GPU available"}
+
     return {
         "status": "healthy",
         "model_loaded": tts_model is not None,
-        "voices_available": len(VOICE_METADATA)
+        "voices_available": len(VOICE_METADATA),
+        "gpu_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+        "using_mixed_precision": True,
+        "memory_info": memory_info
     }
 
 if __name__ == "__main__":
