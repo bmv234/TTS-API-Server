@@ -6,6 +6,13 @@ import tempfile
 import os
 import json
 from f5_tts.api import F5TTS
+from f5_tts.infer.utils_infer import (
+    preprocess_ref_audio_text,
+    infer_process,
+    target_sample_rate,
+    hop_length
+)
+import tqdm
 import uvicorn
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -14,6 +21,9 @@ import logging
 import shutil
 import soundfile as sf
 import numpy as np
+import re
+import torch
+import torchaudio
 
 # Configure logging
 logging.basicConfig(
@@ -39,7 +49,7 @@ with open(METADATA_FILE) as f:
 VoiceId = Enum('VoiceId', {f'VOICE_{i}': f'voice_{i}' for i in range(len(VOICE_METADATA))})
 
 class TTSRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=1000, description="Text to convert to speech")
+    text: str = Field(..., min_length=1, max_length=10000, description="Text to convert to speech")
     voice_id: Optional[VoiceId] = Field(
         default=None,
         description="Voice ID to use for synthesis. If not provided, uses the default voice."
@@ -67,32 +77,29 @@ templates = Jinja2Templates(directory="templates")
 # Initialize F5-TTS model
 tts_model = None
 
+def chunk_text(text, max_chars=135):
+    """Split text into chunks based on F5-TTS implementation"""
+    chunks = []
+    current_chunk = ""
+    # Split the text into sentences based on punctuation followed by whitespace
+    sentences = re.split(r"(?<=[;:,.!?])\s+|(?<=[；：，。！？])", text)
+
+    for sentence in sentences:
+        if len(current_chunk.encode("utf-8")) + len(sentence.encode("utf-8")) <= max_chars:
+            current_chunk += sentence + " " if sentence and len(sentence[-1].encode("utf-8")) == 1 else sentence
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence + " " if sentence and len(sentence[-1].encode("utf-8")) == 1 else sentence
+
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
 def process_audio(audio_data, sample_rate):
-    """Process audio to remove initial noise and add padding"""
-    # Convert to float32 if not already
-    audio_data = audio_data.astype(np.float32)
-    
-    # Add 0.5 seconds of silence at the start
-    padding_samples = int(0.5 * sample_rate)
-    padded_audio = np.concatenate([np.zeros(padding_samples), audio_data])
-    
-    # Find the first significant audio (threshold-based)
-    threshold = 0.01  # Adjust if needed
-    significant_audio_start = 0
-    for i in range(len(padded_audio)):
-        if abs(padded_audio[i]) > threshold:
-            significant_audio_start = max(0, i - int(0.1 * sample_rate))  # Start slightly before
-            break
-    
-    # Trim any noise before the actual speech
-    processed_audio = padded_audio[significant_audio_start:]
-    
-    # Apply fade in
-    fade_samples = int(0.05 * sample_rate)  # 50ms fade
-    fade_in = np.linspace(0, 1, fade_samples)
-    processed_audio[:fade_samples] *= fade_in
-    
-    return processed_audio
+    """Minimal audio processing to preserve the start of speech"""
+    return audio_data.astype(np.float32)
 
 @app.on_event("startup")
 async def startup_event():
@@ -156,6 +163,9 @@ async def list_voices():
 @app.post("/tts")
 async def text_to_speech(request: TTSRequest):
     """Convert text to speech using F5-TTS"""
+    temp_path = None
+    output_path = None
+    
     try:
         # Create a unique filename
         filename = f"tts_{hash(request.text)}_{request.seed}.wav"
@@ -174,29 +184,37 @@ async def text_to_speech(request: TTSRequest):
                                   "F5-TTS/src/f5_tts/infer/examples/basic/basic_ref_en.wav")
             ref_text = "some call me nature, others call me mother nature."
         
-        # Generate speech
-        logger.info(f"Generating speech with voice: {request.voice_id or 'default'}")
-        wav, sr, _ = tts_model.infer(
-            ref_file=ref_file,
-            ref_text=ref_text,
-            gen_text=request.text,
-            file_wave=temp_path,
-            seed=request.seed
+        # Preprocess reference audio and text
+        ref_file, ref_text = preprocess_ref_audio_text(ref_file, ref_text, device=tts_model.device)
+        
+        # Use duplicate_test mode for better initial state handling
+        logger.info("Generating speech with duplicate test mode...")
+        # Use F5-TTS's standard inference process but with higher cfg_strength
+        wav, sr, _ = infer_process(
+            ref_file,
+            ref_text,
+            request.text,
+            tts_model.ema_model,
+            tts_model.vocoder,
+            mel_spec_type="vocos",
+            show_info=logger.info,
+            progress=tqdm,
+            target_rms=0.1,
+            cross_fade_duration=0.15,
+            nfe_step=32,
+            cfg_strength=3.0,        # Increase guidance strength
+            sway_sampling_coef=-1.0,
+            speed=1.0,
+            fix_duration=None,
+            device=tts_model.device
         )
         
-        # Process the audio
-        audio_data, sample_rate = sf.read(temp_path)
-        processed_audio = process_audio(audio_data, sample_rate)
-        
-        # Save processed audio
-        sf.write(output_path, processed_audio, sample_rate)
+        # Save the generated audio
+        sf.write(output_path, wav, sr)
         
         # Cleanup temp file
-        if os.path.exists(temp_path):
+        if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
-        
-        if not os.path.exists(output_path):
-            raise RuntimeError("Generated audio file not found")
         
         # Return the audio file
         return FileResponse(
@@ -205,11 +223,10 @@ async def text_to_speech(request: TTSRequest):
             filename="generated_speech.wav",
             background=None
         )
-    
     except Exception as e:
         logger.error(f"Error generating speech: {str(e)}")
         for path in [temp_path, output_path]:
-            if 'path' in locals() and os.path.exists(path):
+            if path and os.path.exists(path):
                 try:
                     os.unlink(path)
                 except Exception as cleanup_error:
