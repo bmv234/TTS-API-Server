@@ -1,0 +1,314 @@
+{
+  "speaker_1272.wav": {
+    "speaker_id": "1272",
+    "description": "Speaker with 73 recordings",
+    "gender": "F",
+    "total_files": 73,
+    "sample_file": "1272-135031-0009.flac",
+    "reference_text": "He doesn't work at all"
+  },
+  "speaker_1462.wav": {
+    "speaker_id": "1462",
+    "description": "Speaker with 94 recordings",
+    "gender": "F",
+    "total_files": 94,
+    "sample_file": "1462-170142-0003.flac",
+    "reference_text": "The room was empty when he entered"
+  },
+  "speaker_174.wav": {
+    "speaker_id": "174",
+    "description": "Speaker with 59 recordings",
+    "gender": "F",
+    "total_files": 59,
+    "sample_file": "174-168635-0009.flac",
+    "reference_text": "To meet was to find each other"
+  },
+  "speaker_1919.wav": {
+    "speaker_id": "1919",
+    "description": "Speaker with 64 recordings",
+    "gender": "F",
+    "total_files": 64,
+    "sample_file": "1919-142785-0000.flac",
+    "reference_text": "Illustration long pepper"
+  },
+  "speaker_1988.wav": {
+    "speaker_id": "1988",
+    "description": "Speaker with 75 recordings",
+    "gender": "F",
+    "total_files": 75,
+    "sample_file": "1988-147956-0003.flac",
+    "reference_text": "Now why is that otto"
+  },
+  "speaker_1993.wav": {
+    "speaker_id": "1993",
+    "description": "Speaker with 58 recordings",
+    "gender": "F",
+    "total_files": 58,
+    "sample_file": "1993-147149-0014.flac",
+    "reference_text": "Then alice broke the silence by saying"
+  },
+  "speaker_2035.wav": {
+    "speaker_id": "2035",
+    "description": "Speaker with 77 recordings",
+    "gender": "F",
+    "total_files": 77,
+    "sample_file": "2035-147960-0009.flac",
+    "reference_text": "Look tony that's his poison i said"
+  },
+  "speaker_2078.wav": {
+    "speaker_id": "2078",
+    "description": "Speaker with 52 recordings",
+    "gender": "F",
+    "total_files": 52,
+    "sample_file": "2078-142845-0000.flac",
+    "reference_text": "Kirkleatham yeast"
+  },
+  "speaker_2086.wav": {
+    "speaker_id": "2086",
+    "description": "Speaker with 55 recordings",
+    "gender": "F",
+    "total_files": 55,
+    "sample_file": "2086-149220-0039.flac",
+    "reference_text": "She did not altogether like him"
+  },
+  "speaker_2277.wav": {
+    "speaker_id": "2277",
+    "description": "Speaker with 95 recordings",
+    "gender": "F",
+    "total_files": 95,
+    "sample_file": "2277-149874-0021.flac",
+    "reference_text": "These vast buildings what were they"
+  },
+  "speaker_2412.wav": {
+    "speaker_id": "2412",
+    "description": "Speaker with 58 recordings",
+    "gender": "F",
+    "total_files": 58,
+    "sample_file": "2412-153947-0000.flac",
+    "reference_text": "Preface to second edition"
+  },
+  "speaker_2428.wav": {
+    "speaker_id": "2428",
+    "description": "Speaker with 87 recordings",
+    "gender": "F",
+    "total_files": 87,
+    "sample_file": "2428-83705-0003.flac",
+    "reference_text": "It is most delightful"
+  },
+  "speaker_251.wav": {
+    "speaker_id": "251",
+    "description": "Speaker with 75 recordings",
+    "gender": "F",
+    "total_files": 75,
+    "sample_file": "251-118436-0010.flac",
+    "reference_text": "Point of contact inquired the other"
+  },
+  "speaker_2803.wav": {
+    "speaker_id": "2803",
+    "description": "Speaker with 57 recordings",
+    "gender": "F",
+    "total_files": 57,
+    "sample_file": "2803-154328-0002.flac",
+    "reference_text": "The meal ended"
+  },
+  "speaker_2902.wav": {
+    "speaker_id": "2902",
+    "description": "Speaker with 38 recordings",
+    "gender": "F",
+    "total_files": 38,
+    "sample_file": "2902-9008-0008.flac",
+    "reference_text": "What do i care for food"
+  },
+  "speaker_3000.wav": {
+    "speaker_id": "3000",
+    "description": "Speaker with 47 recordings",
+    "gender": "M",
+    "total_files": 47,
+    "sample_file": "3000-15664-0000.flac",
+    "reference_text": "Shasta rambles and modoc memories"
+  },
+  "speaker_3081.wav": {
+    "speaker_id": "3081",
+    "description": "Speaker with 90 recordings",
+    "gender": "M",
+    "total_files": 90,
+    "sample_file": "3081-166546-0002.flac",
+    "reference_text": "Yes and a very respectable one"
+  },
+  "speaker_3170.wav": {
+    "speaker_id": "3170",
+    "description": "Speaker with 49 recordings",
+    "gender": "M",
+    "total_files": 49,
+    "sample_file": "3170-137482-0013.flac",
+    "reference_text": "Where is my husband"
+  },
+  "speaker_3536.wav": {
+    "speaker_id": "3536",
+    "description": "Speaker with 64 recordings",
+    "gender": "M",
+    "total_files": 64,
+    "sample_file": "3536-8226-0007.flac",
+    "reference_text": "Of course it ain't said missus bozzle"
+  },
+  "speaker_3576.wav": {
+    "speaker_id": "3576",
+    "description": "Speaker with 41 recordings",
+    "gender": "M",
+    "total_files": 41,
+    "sample_file": "3576-138058-0003.flac",
+    "reference_text": "Who is touching me and untrussing me"
+  },
+  "speaker_3752.wav": {
+    "speaker_id": "3752",
+    "description": "Speaker with 101 recordings",
+    "gender": "M",
+    "total_files": 101,
+    "sample_file": "3752-4943-0006.flac",
+    "reference_text": "Wants to come out mister north"
+  },
+  "speaker_3853.wav": {
+    "speaker_id": "3853",
+    "description": "Speaker with 57 recordings",
+    "gender": "M",
+    "total_files": 57,
+    "sample_file": "3853-163249-0011.flac",
+    "reference_text": "I shall wait for time to show"
+  },
+  "speaker_422.wav": {
+    "speaker_id": "422",
+    "description": "Speaker with 36 recordings",
+    "gender": "F",
+    "total_files": 36,
+    "sample_file": "422-122949-0017.flac",
+    "reference_text": "This is the problem of race"
+  },
+  "speaker_5338.wav": {
+    "speaker_id": "5338",
+    "description": "Speaker with 59 recordings",
+    "gender": "M",
+    "total_files": 59,
+    "sample_file": "5338-284437-0002.flac",
+    "reference_text": "What that little cabin"
+  },
+  "speaker_5536.wav": {
+    "speaker_id": "5536",
+    "description": "Speaker with 59 recordings",
+    "gender": "M",
+    "total_files": 59,
+    "sample_file": "5536-43358-0000.flac",
+    "reference_text": "The savage philosopher the dual mind"
+  },
+  "speaker_5694.wav": {
+    "speaker_id": "5694",
+    "description": "Speaker with 83 recordings",
+    "gender": "M",
+    "total_files": 83,
+    "sample_file": "5694-64025-0000.flac",
+    "reference_text": "Shiloh"
+  },
+  "speaker_5895.wav": {
+    "speaker_id": "5895",
+    "description": "Speaker with 80 recordings",
+    "gender": "M",
+    "total_files": 80,
+    "sample_file": "5895-34629-0000.flac",
+    "reference_text": "It was established at southwark"
+  },
+  "speaker_6241.wav": {
+    "speaker_id": "6241",
+    "description": "Speaker with 78 recordings",
+    "gender": "M",
+    "total_files": 78,
+    "sample_file": "6241-66616-0020.flac",
+    "reference_text": "Spring came and passed and then summer"
+  },
+  "speaker_6295.wav": {
+    "speaker_id": "6295",
+    "description": "Speaker with 74 recordings",
+    "gender": "M",
+    "total_files": 74,
+    "sample_file": "6295-244435-0000.flac",
+    "reference_text": "Chapter seven the homecoming"
+  },
+  "speaker_6313.wav": {
+    "speaker_id": "6313",
+    "description": "Speaker with 96 recordings",
+    "gender": "M",
+    "total_files": 96,
+    "sample_file": "6313-66125-0009.flac",
+    "reference_text": "I protest shouted the professor"
+  },
+  "speaker_6319.wav": {
+    "speaker_id": "6319",
+    "description": "Speaker with 55 recordings",
+    "gender": "M",
+    "total_files": 55,
+    "sample_file": "6319-57405-0010.flac",
+    "reference_text": "What did he mean asked pyrrha"
+  },
+  "speaker_6345.wav": {
+    "speaker_id": "6345",
+    "description": "Speaker with 77 recordings",
+    "gender": "M",
+    "total_files": 77,
+    "sample_file": "6345-93302-0013.flac",
+    "reference_text": "She said how frightfully cold it is"
+  },
+  "speaker_652.wav": {
+    "speaker_id": "652",
+    "description": "Speaker with 71 recordings",
+    "gender": "F",
+    "total_files": 71,
+    "sample_file": "652-129742-0008.flac",
+    "reference_text": "Pour mayonnaise over all chill and serve"
+  },
+  "speaker_777.wav": {
+    "speaker_id": "777",
+    "description": "Speaker with 82 recordings",
+    "gender": "F",
+    "total_files": 82,
+    "sample_file": "777-126732-0000.flac",
+    "reference_text": "All idealisation makes life poorer"
+  },
+  "speaker_7850.wav": {
+    "speaker_id": "7850",
+    "description": "Speaker with 72 recordings",
+    "gender": "M",
+    "total_files": 72,
+    "sample_file": "7850-73752-0000.flac",
+    "reference_text": "Ferdinand meditates over his good fortune"
+  },
+  "speaker_7976.wav": {
+    "speaker_id": "7976",
+    "description": "Speaker with 78 recordings",
+    "gender": "M",
+    "total_files": 78,
+    "sample_file": "7976-110523-0018.flac",
+    "reference_text": "See i could even get in myself"
+  },
+  "speaker_8297.wav": {
+    "speaker_id": "8297",
+    "description": "Speaker with 75 recordings",
+    "gender": "M",
+    "total_files": 75,
+    "sample_file": "8297-275155-0008.flac",
+    "reference_text": "She added looking at him suspiciously"
+  },
+  "speaker_84.wav": {
+    "speaker_id": "84",
+    "description": "Speaker with 65 recordings",
+    "gender": "F",
+    "total_files": 65,
+    "sample_file": "84-121123-0000.flac",
+    "reference_text": "Go do you hear"
+  },
+  "speaker_8842.wav": {
+    "speaker_id": "8842",
+    "description": "Speaker with 55 recordings",
+    "gender": "M",
+    "total_files": 55,
+    "sample_file": "8842-302201-0010.flac",
+    "reference_text": "The first part is divided into four"
+  }
+}

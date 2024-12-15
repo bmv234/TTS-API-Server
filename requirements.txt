@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+soundfile
+numpy
+torch
+torchaudio
+transformers
+vocos
+pydub
+matplotlib
+cached-path
+huggingface-hub
+safetensors
+git+https://github.com/SWivid/F5-TTS.git
