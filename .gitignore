@@ -30,10 +30,15 @@ ENV/
 .vscode/
 *.swp
 *.swo
-
 # Generated files
 output/
-*.wav
+uploads/*.wav
+output/*.wav
+reference_voices/
+
+# Keep default reference audio file
+!src/f5_tts/infer/examples/basic/*.wav
+
 
 # Logs
 *.log
