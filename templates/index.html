@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F5-TTS Web Interface</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --input-bg: #3d3d3d;
+            --button-bg: #007bff;
+            --button-hover: #0056b3;
+            --code-bg: #000000;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .container {
+            background-color: var(--container-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        h1 {
+            color: var(--text-color);
+            text-align: center;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-color);
+        }
+        textarea, select, input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        button {
+            background-color: var(--button-bg);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: var(--button-hover);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--input-bg);
+            border-radius: 4px;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--text-color);
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background-color: var(--input-bg);
+            border-radius: 4px 4px 0 0;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            color: var(--text-color);
+        }
+        .tab button:hover {
+            background-color: var(--container-bg);
+        }
+        .tab button.active {
+            background-color: var(--button-bg);
+            color: white;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        .error {
+            color: #ff4444;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ff4444;
+            border-radius: 4px;
+            display: none;
+        }
+        .api-example {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--code-bg);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .api-example pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #00ff00;
+        }
+        .api-example h3 {
+            color: var(--text-color);
+            margin-top: 0;
+        }
+        .copy-button {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 5px 10px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .copy-button:hover {
+            background-color: var(--container-bg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>F5-TTS Web Interface</h1>
+        
+        <div class="tab">
+            <button class="tablinks active" onclick="openMode(event, 'standardMode')">Standard Mode</button>
+            <button class="tablinks" onclick="openMode(event, 'cloneMode')">Voice Clone Mode</button>
+        </div>
+
+        <div id="standardMode" class="tabcontent" style="display: block;">
+            <div class="section">
+                <label for="text">Enter Text:</label>
+                <textarea id="text" rows="4" placeholder="Enter the text you want to convert to speech" oninput="updateApiExample()"></textarea>
+                
+                <label for="voice">Select Voice:</label>
+                <select id="voice" onchange="updateApiExample()">
+                    <option value="">Default Voice</option>
+                    {% for voice in voices %}
+                    <option value="{{ voice.id }}">
+                        {{ voice.id }} ({{ voice.metadata.gender }}) - "{{ voice.metadata.reference_text }}"
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <button onclick="generateSpeech()">Generate Speech</button>
+            </div>
+        </div>
+
+        <div id="cloneMode" class="tabcontent">
+            <div class="section">
+                <label for="referenceAudio">Upload Reference Voice (WAV file):</label>
+                <input type="file" id="referenceAudio" accept=".wav" required onchange="updateCloneApiExample()">
+                
+                <label for="referenceText">Reference Text:</label>
+                <textarea id="referenceText" rows="2" placeholder="Enter the text that is spoken in the reference audio" oninput="updateCloneApiExample()"></textarea>
+                
+                <label for="cloneText">Text to Convert:</label>
+                <textarea id="cloneText" rows="4" placeholder="Enter the text you want to convert using the cloned voice" oninput="updateCloneApiExample()"></textarea>
+                
+                <button onclick="generateClonedSpeech()">Generate Cloned Speech</button>
+            </div>
+        </div>
+
+        <div id="loading">
+            Generating speech... Please wait...
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div id="result" class="result" style="display: none;">
+            <audio id="audio" controls style="width: 100%;">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="api-example">
+            <h3>API Example</h3>
+            <pre id="apiExample">// Select a mode and fill in the fields to see the API example</pre>
+            <button class="copy-button" onclick="copyApiExample()">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        function openMode(evt, modeName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(modeName).style.display = "block";
+            evt.currentTarget.className += " active";
+            updateApiExample();
+        }
+
+        function updateApiExample() {
+            const text = document.getElementById('text').value;
+            const voice = document.getElementById('voice').value;
+            let example = '';
+
+            if (document.getElementById('standardMode').style.display === 'block') {
+                example = `# Python example using requests library
+import requests
+
+url = "http://localhost:8000/tts"
+payload = {
+    "text": "${text || 'Hello, how are you?'}"${voice ? `,
+    "voice_id": "${voice}"` : ''}
+}
+
+response = requests.post(url, json=payload)
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+
+# cURL example
+curl -X POST "http://localhost:8000/tts" \\
+     -H "Content-Type: application/json" \\
+     -d '{"text": "${text || 'Hello, how are you?'}"${voice ? `, "voice_id": "${voice}"` : ''}}' \\
+     --output output.wav`;
+            }
+            document.getElementById('apiExample').textContent = example;
+        }
+
+        function updateCloneApiExample() {
+            if (document.getElementById('cloneMode').style.display === 'block') {
+                const referenceText = document.getElementById('referenceText').value;
+                const cloneText = document.getElementById('cloneText').value;
+                const example = `# Python example using requests library
+import requests
+
+url = "http://localhost:8000/clone"
+files = {
+    'reference_audio': ('reference.wav', open('reference.wav', 'rb')),
+}
+data = {
+    'reference_text': "${referenceText || 'Reference text here'}",
+    'text': "${cloneText || 'Text to convert here'}"
+}
+
+response = requests.post(url, files=files, data=data)
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+
+# cURL example
+curl -X POST "http://localhost:8000/clone" \\
+     -F "reference_audio=@reference.wav" \\
+     -F "reference_text=${referenceText || 'Reference text here'}" \\
+     -F "text=${cloneText || 'Text to convert here'}" \\
+     --output output.wav`;
+                document.getElementById('apiExample').textContent = example;
+            }
+        }
+
+        async function generateSpeech() {
+            const text = document.getElementById('text').value;
+            const voice = document.getElementById('voice').value;
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const error = document.getElementById('error');
+            const audio = document.getElementById('audio');
+
+            if (!text) {
+                showError('Please enter some text');
+                return;
+            }
+
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            error.style.display = 'none';
+
+            try {
+                const response = await fetch('/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        voice_id: voice || undefined
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to generate speech');
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                audio.src = url;
+                result.style.display = 'block';
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function generateClonedSpeech() {
+            const referenceAudio = document.getElementById('referenceAudio').files[0];
+            const referenceText = document.getElementById('referenceText').value;
+            const cloneText = document.getElementById('cloneText').value;
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const error = document.getElementById('error');
+            const audio = document.getElementById('audio');
+
+            if (!referenceAudio || !referenceText || !cloneText) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            error.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('reference_audio', referenceAudio);
+            formData.append('reference_text', referenceText);
+            formData.append('text', cloneText);
+
+            try {
+                const response = await fetch('/clone', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to generate cloned speech');
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                audio.src = url;
+                result.style.display = 'block';
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function copyApiExample() {
+            const example = document.getElementById('apiExample').textContent;
+            navigator.clipboard.writeText(example).then(() => {
+                const copyButton = document.querySelector('.copy-button');
+                const originalText = copyButton.textContent;
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Initialize API example
+        updateApiExample();
+    </script>
+</body>
+</html>
