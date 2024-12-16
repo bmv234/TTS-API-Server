@@ -372,6 +372,16 @@ async def clone_voice(
         # Split text into chunks for batch processing
         text_chunks = chunk_text(text)
         
+        # Warm up the model with a dummy inference
+        logger.info("Warming up model...")
+        dummy_text = "Testing, one two three."
+        tts_model.infer(
+            ref_file=ref_file,
+            ref_text=reference_text,
+            gen_text=dummy_text,
+            seed=-1
+        )
+        
         # Process all chunks sequentially
         results, sr = process_text(text_chunks, ref_file, reference_text, tts_model.ema_model, tts_model.device)
         
@@ -463,4 +473,10 @@ async def health_check():
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        ssl_keyfile="key.pem",
+        ssl_certfile="cert.pem"
+    )

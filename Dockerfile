@@ -15,7 +15,13 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
     curl \
+    openssl \
     && rm -rf /var/lib/apt/lists/*
+
+# Generate SSL certificates
+RUN openssl req -x509 -newkey rsa:4096 -nodes \
+    -keyout key.pem -out cert.pem -days 365 \
+    -subj '/CN=localhost'
 
 # Create app directory
 WORKDIR /app

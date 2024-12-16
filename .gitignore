@@ -46,3 +46,6 @@ reference_voices/
 # OS
 .DS_Store
 Thumbs.db
+
+# SSL Certificates
+*.pem

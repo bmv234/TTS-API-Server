@@ -224,8 +224,49 @@
 
         <div id="cloneMode" class="tabcontent">
             <div class="section">
-                <label for="referenceAudio">Upload Reference Voice (WAV file):</label>
-                <input type="file" id="referenceAudio" accept=".wav" required onchange="updateCloneApiExample()">
+                <div style="margin-bottom: 20px;">
+                    <label>Reference Voice:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button id="recordButton" onclick="toggleRecording()" style="background-color: var(--button-bg); flex: 1;">
+                            🎤 Record Voice
+                        </button>
+                        <div style="text-align: center; flex: 1; display: none;" id="recordingStatus">
+                            Recording... <span id="recordingTime">0:00</span>
+                            <div style="width: 100%; height: 4px; background: var(--border-color); margin-top: 5px;">
+                                <div id="recordingIndicator" style="width: 0%; height: 100%; background: var(--button-bg); transition: width 0.1s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="recordingPreview" style="display: none; margin-bottom: 10px;">
+                        <audio id="recordedAudio" controls style="width: 100%; margin-bottom: 5px;"></audio>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="acceptRecording()" style="flex: 1; background-color: #28a745;">✓ Use Recording</button>
+                            <button onclick="discardRecording()" style="flex: 1; background-color: #dc3545;">✗ Discard</button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="flex-grow: 1;">
+                            <label for="referenceAudio">Or Upload WAV File:</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="flex-grow: 1; position: relative;">
+                                    <input type="file" id="referenceAudio" accept=".wav" onchange="updateCloneApiExample()">
+                                    <button
+                                        onclick="clearFileInput(event)"
+                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+                                               background: var(--input-bg); border: none; color: var(--text-color);
+                                               padding: 4px 8px; border-radius: 4px; cursor: pointer;
+                                               display: none; transition: background-color 0.2s;"
+                                        onmouseover="this.style.backgroundColor = 'var(--container-bg)'"
+                                        onmouseout="this.style.backgroundColor = 'var(--input-bg)'"
+                                        id="clearFileButton"
+                                        title="Clear file selection">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <label for="referenceText">Reference Text:</label>
                 <textarea id="referenceText" rows="2" placeholder="Enter the text that is spoken in the reference audio" oninput="updateCloneApiExample()"></textarea>
@@ -244,14 +285,21 @@
         <div id="error" class="error"></div>
 
         <div id="result" class="result" style="display: none;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <audio id="audio" controls style="flex-grow: 1;">
-                    Your browser does not support the audio element.
-                </audio>
-                <div class="playback-controls" style="display: flex; align-items: center; gap: 10px; white-space: nowrap;">
-                    <label for="playbackSpeed">Speed:</label>
-                    <input type="range" id="playbackSpeed" min="0.5" max="2" step="0.1" value="1" style="width: 100px;">
-                    <span id="speedValue">1.0x</span>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <audio id="audio" controls style="flex-grow: 1;">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <div class="playback-controls" style="display: flex; align-items: center; gap: 10px; white-space: nowrap;">
+                        <label for="playbackSpeed">Speed:</label>
+                        <input type="range" id="playbackSpeed" min="0.5" max="2" step="0.1" value="1" style="width: 100px;">
+                        <span id="speedValue">1.0x</span>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button onclick="downloadAudio()" style="background-color: var(--button-bg); padding: 8px 16px;">
+                        <span style="margin-right: 8px;">⬇️</span>Download Audio
+                    </button>
                 </div>
             </div>
         </div>
@@ -276,7 +324,13 @@
             }
             document.getElementById(modeName).style.display = "block";
             evt.currentTarget.className += " active";
-            updateApiExample();
+            
+            // Update API example based on mode
+            if (modeName === 'cloneMode') {
+                updateCloneApiExample();
+            } else {
+                updateApiExample();
+            }
         }
 
         function updateApiExample() {
@@ -286,23 +340,27 @@
 
             if (document.getElementById('standardMode').style.display === 'block') {
                 example = `# Python example using requests library
+                
 import requests
+import warnings
+warnings.filterwarnings('ignore') # For self-signed certificate
 
-url = "http://localhost:8000/tts"
+url = "https://localhost:8000/tts"
 payload = {
-    "text": "${text || 'Hello, how are you?'}"${voice ? `,
-    "voice_id": "${voice}"` : ''}
+"text": "${text || 'Hello, how are you?'}"${voice ? `,
+"voice_id": "${voice}"` : ''}
 }
 
-response = requests.post(url, json=payload)
+response = requests.post(url, json=payload, verify=False)  # verify=False for self-signed cert
 with open("output.wav", "wb") as f:
-    f.write(response.content)
+f.write(response.content)
 
 # cURL example
-curl -X POST "http://localhost:8000/tts" \\
-     -H "Content-Type: application/json" \\
-     -d '{"text": "${text || 'Hello, how are you?'}"${voice ? `, "voice_id": "${voice}"` : ''}}' \\
-     --output output.wav`;
+
+curl -X POST --insecure "https://localhost:8000/tts" \\
+-H "Content-Type: application/json" \\
+-d '{"text": "${text || 'Hello, how are you?'}"${voice ? `, "voice_id": "${voice}"` : ''}}' \\
+--output output.wav`;
             }
             document.getElementById('apiExample').textContent = example;
         }
@@ -311,29 +369,35 @@ curl -X POST "http://localhost:8000/tts" \\
             if (document.getElementById('cloneMode').style.display === 'block') {
                 const referenceText = document.getElementById('referenceText').value;
                 const cloneText = document.getElementById('cloneText').value;
-                const example = `# Python example using requests library
-import requests
+                example = `# Python example using requests library
 
-url = "http://localhost:8000/clone"
+import requests
+import warnings
+warnings.filterwarnings('ignore') # For self-signed certificate
+
+url = "https://localhost:8000/clone"
 files = {
-    'reference_audio': ('reference.wav', open('reference.wav', 'rb')),
+'reference_audio': ('reference.wav', open('reference.wav', 'rb')),
 }
 data = {
-    'reference_text': "${referenceText || 'Reference text here'}",
-    'text': "${cloneText || 'Text to convert here'}"
+'reference_text': "${referenceText || 'Reference text here'}",
+'text': "${cloneText || 'Text to convert here'}"
 }
 
-response = requests.post(url, files=files, data=data)
+response = requests.post(url, files=files, data=data, verify=False)  # verify=False for self-signed cert
 with open("output.wav", "wb") as f:
-    f.write(response.content)
-
+f.write(response.content)
+                
 # cURL example
-curl -X POST "http://localhost:8000/clone" \\
-     -F "reference_audio=@reference.wav" \\
-     -F "reference_text=${referenceText || 'Reference text here'}" \\
-     -F "text=${cloneText || 'Text to convert here'}" \\
-     --output output.wav`;
+
+curl -X POST --insecure "https://localhost:8000/clone" \\
+-F "reference_audio=@reference.wav" \\
+-F "reference_text=${referenceText || 'Reference text here'}" \\
+-F "text=${cloneText || 'Text to convert here'}" \\
+--output output.wav`;
                 document.getElementById('apiExample').textContent = example;
+            } else {
+                updateApiExample();  // Update standard mode example if not in clone mode
             }
         }
 
@@ -383,16 +447,20 @@ curl -X POST "http://localhost:8000/clone" \\
         }
 
         async function generateClonedSpeech() {
-            const referenceAudio = document.getElementById('referenceAudio').files[0];
             const referenceText = document.getElementById('referenceText').value;
             const cloneText = document.getElementById('cloneText').value;
             const loading = document.getElementById('loading');
             const result = document.getElementById('result');
             const error = document.getElementById('error');
             const audio = document.getElementById('audio');
-
+        
+            // Get reference audio from either the file input or recorded audio
+            const referenceAudio = recordedChunks.length > 0 ?
+                recordedChunks[0] : // Use recorded audio if available
+                document.getElementById('referenceAudio').files[0]; // Otherwise use uploaded file
+        
             if (!referenceAudio || !referenceText || !cloneText) {
-                showError('Please fill in all fields');
+                showError('Please provide reference audio (either record or upload), reference text, and text to convert');
                 return;
             }
 
@@ -495,6 +563,246 @@ generateClonedSpeech = async function() {
 
         // Initialize API example
         updateApiExample();
-    </script>
+        
+        // Show/hide clear button based on file selection
+        document.getElementById('referenceAudio').addEventListener('change', function() {
+            const clearButton = document.getElementById('clearFileButton');
+            clearButton.style.display = this.value ? 'block' : 'none';
+        });
+        
+        // Clear file input and update UI
+        function clearFileInput(event) {
+            // Prevent event from bubbling up to file input
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        
+            const fileInput = document.getElementById('referenceAudio');
+            const clearButton = document.getElementById('clearFileButton');
+            
+            // Clear the input
+            fileInput.value = '';
+            clearButton.style.display = 'none';
+            
+            // Update API example
+            updateCloneApiExample();
+        }
+        
+        // Recording variables
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingInterval = null;
+        let startTime = null;
+        
+        // Request microphone access and setup recorder
+        async function setupRecorder() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+        
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                    const audioURL = URL.createObjectURL(blob);
+                    const recordedAudio = document.getElementById('recordedAudio');
+                    recordedAudio.src = audioURL;
+                    document.getElementById('recordingPreview').style.display = 'block';
+                    
+                    // Convert to WAV format
+                    const audioContext = new AudioContext();
+                    const audioData = await blob.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(audioData);
+                    
+                    // Create WAV file
+                    const wavBuffer = audioBufferToWav(audioBuffer);
+                    const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+                    
+                    // Create a File object that can be used with FormData
+                    const wavFile = new File([wavBlob], 'recorded_reference.wav', { type: 'audio/wav' });
+                    recordedChunks = [wavFile]; // Store the WAV file for later use
+                };
+        
+                return true;
+            } catch (err) {
+                showError('Microphone access denied or not available');
+                return false;
+            }
+        }
+        
+        // Convert AudioBuffer to WAV format
+        function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+            
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            
+            const dataLength = buffer.length * blockAlign;
+            const bufferLength = 44 + dataLength;
+            
+            const arrayBuffer = new ArrayBuffer(bufferLength);
+            const view = new DataView(arrayBuffer);
+            
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataLength, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataLength, true);
+            
+            // Write audio data
+            const offset = 44;
+            const channels = [];
+            for (let i = 0; i < numChannels; i++) {
+                channels.push(buffer.getChannelData(i));
+            }
+            
+            for (let i = 0; i < buffer.length; i++) {
+                for (let channel = 0; channel < numChannels; channel++) {
+                    const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+                    const int16 = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                    view.setInt16(offset + (i * blockAlign) + (channel * bytesPerSample), int16, true);
+                }
+            }
+            
+            return arrayBuffer;
+        }
+        
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        
+        // Toggle recording state
+        async function toggleRecording() {
+            if (!mediaRecorder) {
+                const setup = await setupRecorder();
+                if (!setup) return;
+            }
+        
+            if (mediaRecorder.state === 'inactive') {
+                // Start recording
+                recordedChunks = [];
+                mediaRecorder.start(10); // Collect data every 10ms
+                document.getElementById('recordButton').style.backgroundColor = 'var(--button-hover)';
+                document.getElementById('recordButton').textContent = '⏹ Stop Recording';
+                document.getElementById('recordingStatus').style.display = 'block';
+                document.getElementById('recordingPreview').style.display = 'none';
+                
+                // Start recording timer
+                startTime = Date.now();
+                recordingInterval = setInterval(updateRecordingTime, 100);
+            } else {
+                // Stop recording
+                mediaRecorder.stop();
+                clearInterval(recordingInterval);
+                document.getElementById('recordButton').style.backgroundColor = 'var(--button-bg)';
+                document.getElementById('recordButton').textContent = '🎤 Record Voice';
+                document.getElementById('recordingStatus').style.display = 'none';
+            }
+        }
+        
+        // Update recording timer and visual indicator
+        function updateRecordingTime() {
+            const duration = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            document.getElementById('recordingTime').textContent =
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Update visual indicator
+            const indicator = document.getElementById('recordingIndicator');
+            indicator.style.width = `${(duration % 2) * 100}%`;
+        }
+        
+        // Accept the recording
+        function acceptRecording() {
+            const referenceAudio = document.getElementById('referenceAudio');
+            
+            // Create a new FileList-like object
+            const dt = new DataTransfer();
+            dt.items.add(recordedChunks[0]);
+            referenceAudio.files = dt.files;
+            
+            // Hide preview
+            document.getElementById('recordingPreview').style.display = 'none';
+            
+            // Update API example with recorded audio info
+            example = `# Python example using requests library
+
+import requests
+import warnings
+warnings.filterwarnings('ignore') # For self-signed certificate
+
+url = "https://localhost:8000/clone"
+files = {
+'reference_audio': ('recorded_reference.wav', open('recorded_reference.wav', 'rb')),
+}
+data = {
+'reference_text': "${document.getElementById('referenceText').value || 'Reference text here'}",
+'text': "${document.getElementById('cloneText').value || 'Text to convert here'}"
+}
+
+response = requests.post(url, files=files, data=data, verify=False)  # verify=False for self-signed cert
+with open("output.wav", "wb") as f:
+f.write(response.content)
+
+# cURL example
+
+curl -X POST --insecure "https://localhost:8000/clone" \\
+-F "reference_audio=@recorded_reference.wav" \\
+-F "reference_text=${document.getElementById('referenceText').value || 'Reference text here'}" \\
+-F "text=${document.getElementById('cloneText').value || 'Text to convert here'}" \\
+--output output.wav`;
+            document.getElementById('apiExample').textContent = example;
+        }
+        
+        // Discard the recording
+        function discardRecording() {
+            recordedChunks = [];
+            document.getElementById('recordingPreview').style.display = 'none';
+            document.getElementById('recordedAudio').src = '';
+        }
+        
+        // Download audio function
+        function downloadAudio() {
+            const audio = document.getElementById('audio');
+            if (!audio.src) {
+                showError('No audio available to download');
+                return;
+            }
+        
+            // Create a temporary anchor element
+            const a = document.createElement('a');
+            a.href = audio.src;
+            
+            // Set filename based on current mode and timestamp
+            const mode = document.getElementById('standardMode').style.display === 'block' ? 'tts' : 'cloned';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.download = `${mode}_speech_${timestamp}.wav`;
+            
+            // Trigger download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        </script>
 </body>
 </html>

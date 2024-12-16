@@ -146,6 +146,16 @@ async def text_to_speech(request: TTSRequest):
                                   "src/f5_tts/infer/examples/basic/basic_ref_en.wav")
             ref_text = "some call me nature, others call me mother nature."
         
+        # Warm up the model with a dummy inference
+        logger.info("Warming up model...")
+        dummy_text = "Testing, one two three."
+        tts_model.infer(
+            ref_file=ref_file,
+            ref_text=ref_text,
+            gen_text=dummy_text,
+            seed=-1
+        )
+        
         # Generate speech
         logger.info(f"Generating speech with voice: {request.voice_id or 'default'}")
         wav, sr, _ = tts_model.infer(
@@ -202,4 +212,10 @@ async def health_check():
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        ssl_keyfile="key.pem",
+        ssl_certfile="cert.pem"
+    )

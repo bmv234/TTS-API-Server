@@ -104,31 +104,44 @@ mkdir -p output uploads
 
 ### Local Running
 
-After completing the local installation, you can run the server in one of two ways:
+The server runs over HTTPS using self-signed certificates for security (required for microphone access). After completing the local installation:
 
-1. API-only version (recommended for production):
+1. Generate SSL certificates (if not already present):
 ```bash
-# Activate virtual environment if not already active
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate  # Windows
-
-# Run API server
-python main.py
+openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'
 ```
 
-2. Version with web interface (recommended for testing):
-```bash
-# Activate virtual environment if not already active
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate  # Windows
+2. Run the server in one of two ways:
 
-# Run web interface server
-python main-ui.py
-```
+   a. API-only version (recommended for production):
+   ```bash
+   # Activate virtual environment if not already active
+   source venv/bin/activate  # Linux/Mac
+   # or
+   .\venv\Scripts\activate  # Windows
 
-Both versions will run on http://localhost:8000. The web interface version provides a user-friendly interface for testing the TTS functionality, while the API-only version is more suitable for production deployments where only the REST API is needed.
+   # Run API server
+   python main.py
+   ```
+
+   b. Version with web interface (recommended for testing):
+   ```bash
+   # Activate virtual environment if not already active
+   source venv/bin/activate  # Linux/Mac
+   # or
+   .\venv\Scripts\activate  # Windows
+
+   # Run web interface server
+   python main-ui.py
+   ```
+
+Both versions will run on https://localhost:8000. When accessing the server:
+- Your browser will show a security warning because of the self-signed certificate
+- Click "Advanced" and "Proceed to localhost" to access the interface
+- The web interface provides a user-friendly interface for testing the TTS functionality
+- The API-only version is more suitable for production deployments where only the REST API is needed
+
+Note: HTTPS is required for security-sensitive features like microphone access in modern browsers.
 
 ### Docker Running
 
@@ -171,19 +184,21 @@ After starting the server, verify it's working:
 
 1. Check the health endpoint:
 ```bash
-curl http://localhost:8000/health
+curl --insecure https://localhost:8000/health
 ```
 
 2. Test text-to-speech:
 ```bash
-curl -X POST "http://localhost:8000/tts" \
+curl --insecure -X POST "https://localhost:8000/tts" \
      -H "Content-Type: application/json" \
      -d '{"text": "Hello, this is a test."}' \
      --output test.wav
 ```
 
 3. Open web interface (if using main-ui.py):
-   Visit http://localhost:8000 in your browser
+   Visit https://localhost:8000 in your browser
+   - You'll see a security warning due to the self-signed certificate
+   - Click "Advanced" and "Proceed to localhost" to access the interface
 
 ## Testing the API
 
@@ -270,8 +285,12 @@ Response:
 ## API Documentation
 
 Once the server is running, you can access the interactive API documentation at:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: https://localhost:8000/docs
+- ReDoc: https://localhost:8000/redoc
+
+Note: When accessing the API documentation or making API calls:
+- For development with self-signed certificates, use the `--insecure` flag with curl or disable certificate verification in your client
+- For production, use properly signed SSL certificates from a trusted Certificate Authority
 
 ## Features
 
