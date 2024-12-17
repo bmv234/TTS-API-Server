@@ -35,6 +35,7 @@ output/
 uploads/*.wav
 output/*.wav
 reference_voices/
+LibriSpeech/
 
 # Keep default reference audio file
 !src/f5_tts/infer/examples/basic/*.wav
