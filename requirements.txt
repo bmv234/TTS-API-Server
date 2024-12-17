@@ -1,3 +1,5 @@
+requests
+tqdm
 fastapi
 uvicorn
 pydantic
@@ -13,4 +15,5 @@ matplotlib
 cached-path
 huggingface-hub
 safetensors
+#setuptools>=61.0
 git+https://github.com/SWivid/F5-TTS.git

@@ -20,7 +20,7 @@ required_files=(
     "main.py"
     "main-ui.py"
     "prepare_references.py"
-    "analyze_librispeech.py"
+    "install_librispeech.py"
     "templates/index.html"
     "src/f5_tts/infer/examples/basic/basic_ref_en.wav"
 )
@@ -32,7 +32,10 @@ for file in "${required_files[@]}"; do
     fi
 done
 
-echo "Building F5-TTS Server Docker image..."
+# Create required directories
+mkdir -p output uploads
+
+echo "Building TTS Server Docker image..."
 echo "Using CUDA 12.6.3 with development tools"
 echo "This will download and prepare the LibriSpeech dataset during build"
 
@@ -40,8 +43,8 @@ echo "This will download and prepare the LibriSpeech dataset during build"
 docker build \
   --network=host \
   --progress=plain \
-  --tag f5-tts-server:latest \
-  --tag f5-tts-server:cuda12.6.3 \
+  --tag tts-server:latest \
+  --tag tts-server:cuda12.6.3 \
   .
 
 echo
@@ -49,12 +52,12 @@ echo "Build complete!"
 echo
 echo "You can run the server with:"
 echo "docker run --gpus all -p 8000:8000 \\"
-echo "  -v \$(pwd)/output:/app/output \\"
-echo "  -v \$(pwd)/uploads:/app/uploads \\"
-echo "  f5-tts-server:latest"
+echo "  -v ./output:/app/output \\"
+echo "  -v ./uploads:/app/uploads \\"
+echo "  tts-server:latest"
 echo
 echo "To verify GPU support:"
-echo "docker run --gpus all --rm f5-tts-server:latest python -c 'import torch; print(f\"CUDA available: {torch.cuda.is_available()}\")'"
+echo "docker run --gpus all --rm tts-server:latest python -c 'import torch; print(f\"CUDA available: {torch.cuda.is_available()}\")'"
 echo
 echo "To check server health:"
-echo "curl http://localhost:8000/health"
+echo "curl -k https://localhost:8000/health"

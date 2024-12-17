@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  f5-tts-server:
+  tts-server:
     build:
       context: .
       dockerfile: Dockerfile
-    image: f5-tts-server:latest
+    image: tts-server:latest
     ports:
       - "8000:8000"
     volumes:
