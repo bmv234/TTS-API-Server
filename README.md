@@ -1,6 +1,6 @@
 # F5-TTS API Server
 
-![Docker Build](https://github.com/owner/TTS-API-Server/actions/workflows/docker-publish.yml/badge.svg)
+![Docker Build](https://github.com/bmv234/TTS-API-Server/actions/workflows/docker-publish.yml/badge.svg)
 
 A simple REST API server that provides text-to-speech functionality using F5-TTS, with support for multiple voices.
 
