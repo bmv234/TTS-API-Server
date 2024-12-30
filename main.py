@@ -5,9 +5,11 @@ import os
 import json
 from f5_tts.api import F5TTS
 import uvicorn
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, SecretStr
+from typing import Optional, List, Literal
 from enum import Enum
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, Header, HTTPException, Security
 import logging
 import shutil
 import gc
@@ -67,6 +69,39 @@ class Voice(BaseModel):
 
 class VoiceList(BaseModel):
     voices: List[Voice]
+
+# OpenAI voice mapping
+OPENAI_VOICE_MAP = {
+    "alloy": "voice_0",    # Map to first voice
+    "echo": "voice_1",     # Map to second voice
+    "fable": "voice_2",    # Map to third voice
+    "onyx": "voice_3",     # Map to fourth voice
+    "nova": "voice_4",     # Map to fifth voice
+    "shimmer": "voice_5"   # Map to sixth voice
+}
+
+# Security
+security = HTTPBearer()
+
+def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)):
+    """Verify the API key from Authorization header"""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return  # Allow if no API key is set
+    
+    if not credentials or not credentials.credentials or credentials.credentials != f"Bearer {api_key}":
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key"
+        )
+    return credentials
+
+class OpenAITTSRequest(BaseModel):
+    model: Literal["tts-1", "tts-1-hd"] = "tts-1"
+    input: str = Field(..., min_length=1, max_length=1000, description="The text to generate audio for")
+    voice: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+    response_format: Literal["mp3", "opus", "aac", "flac", "wav"] = "mp3"
+    speed: float = Field(1.0, ge=0.25, le=4.0)
 
 app = FastAPI(title="F5-TTS API Server")
 
@@ -186,6 +221,101 @@ async def text_to_speech(request: TTSRequest):
                 logger.warning(f"Failed to cleanup file after error: {str(cleanup_error)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/v1/audio/speech")
+async def openai_tts(
+    request: OpenAITTSRequest,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """
+    OpenAI-compatible TTS endpoint
+    """
+    try:
+        # Map OpenAI voice to our voice ID
+        voice_id = OPENAI_VOICE_MAP.get(request.voice)
+        if not voice_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Voice '{request.voice}' not supported"
+            )
+
+        # Get reference voice file
+        voice_file = list(VOICE_METADATA.keys())[int(voice_id.split('_')[1])]
+        ref_file = os.path.join("reference_voices/english", voice_file)
+        ref_text = VOICE_METADATA[voice_file]["reference_text"]
+
+        # Create a unique filename
+        filename = f"tts_{hash(request.input)}_{voice_id}.wav"
+        output_path = os.path.join(OUTPUT_DIR, filename)
+
+        # Generate speech
+        logger.info(f"Generating speech with OpenAI-compatible endpoint using voice: {voice_id}")
+        wav, sr, _ = tts_model.infer(
+            ref_file=ref_file,
+            ref_text=ref_text,
+            gen_text=request.input,
+            file_wave=output_path,
+            seed=-1
+        )
+
+        if not os.path.exists(output_path):
+            raise RuntimeError("Generated audio file not found")
+
+        # Convert to requested format if not WAV
+        if request.response_format != "wav":
+            try:
+                from pydub import AudioSegment
+            except ImportError:
+                logger.warning("pydub not installed, falling back to WAV format")
+                return FileResponse(
+                    output_path,
+                    media_type="audio/wav",
+                    filename="speech.wav",
+                    background=None
+                )
+            
+            # Load the WAV file
+            audio = AudioSegment.from_wav(output_path)
+            
+            # Create temporary file for converted audio
+            with tempfile.NamedTemporaryFile(suffix=f".{request.response_format}", delete=False) as temp_file:
+                converted_path = temp_file.name
+                
+                # Export to requested format
+                audio.export(converted_path, format=request.response_format)
+                
+                # Return the converted audio
+                response = FileResponse(
+                    converted_path,
+                    media_type=f"audio/{request.response_format}",
+                    filename=f"speech.{request.response_format}",
+                    background=None
+                )
+                
+                # Clean up original WAV
+                try:
+                    os.unlink(output_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup WAV file: {str(cleanup_error)}")
+                
+                return response
+
+        # Return WAV if no conversion needed
+        return FileResponse(
+            output_path,
+            media_type="audio/wav",
+            filename="speech.wav",
+            background=None
+        )
+
+    except Exception as e:
+        logger.error(f"Error in OpenAI-compatible endpoint: {str(e)}")
+        if 'output_path' in locals() and os.path.exists(output_path):
+            try:
+                os.unlink(output_path)
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup file after error: {str(cleanup_error)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 async def health_check():
     """
@@ -209,6 +339,37 @@ async def health_check():
         "gpu_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
         "using_mixed_precision": True,
         "memory_info": memory_info
+    }
+
+@app.get("/v1/models")
+async def list_models(
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """
+    OpenAI-compatible models endpoint
+    """
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "tts-1",
+                "object": "model",
+                "created": 1699488000,  # November 2023 (when OpenAI released their TTS)
+                "owned_by": "f5-tts",
+                "permission": [],
+                "root": "tts-1",
+                "parent": None
+            },
+            {
+                "id": "tts-1-hd",
+                "object": "model",
+                "created": 1699488000,
+                "owned_by": "f5-tts",
+                "permission": [],
+                "root": "tts-1-hd",
+                "parent": None
+            }
+        ]
     }
 
 if __name__ == "__main__":

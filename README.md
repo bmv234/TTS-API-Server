@@ -2,7 +2,7 @@
 
 ![Docker Build](https://github.com/bmv234/TTS-API-Server/actions/workflows/docker-build.yml/badge.svg)
 
-A simple REST API server that provides text-to-speech functionality using F5-TTS, with support for multiple voices.
+A simple REST API server that provides text-to-speech functionality using F5-TTS, with support for multiple voices. Includes OpenAI API compatibility for drop-in replacement of OpenAI's TTS service.
 
 ## Installation Options
 
@@ -217,7 +217,11 @@ This will generate three audio files:
 
 ## API Endpoints
 
-### GET /voices
+The server provides both custom API endpoints and OpenAI-compatible endpoints.
+
+### Custom API Endpoints
+
+#### GET /voices
 Get a list of available voices.
 
 Response:
@@ -284,6 +288,102 @@ Response:
 }
 ```
 
+### OpenAI-Compatible Endpoints
+
+The server also provides OpenAI-compatible endpoints that follow OpenAI's API structure. These endpoints can be used as a drop-in replacement for OpenAI's TTS API.
+
+#### Authentication
+
+OpenAI-compatible endpoints support Bearer token authentication:
+
+```bash
+# Set your API key (optional)
+export OPENAI_API_KEY=your-api-key
+
+# Use in requests
+curl -H "Authorization: Bearer your-api-key" ...
+```
+
+If OPENAI_API_KEY is not set, authentication is disabled.
+
+#### POST /v1/audio/speech
+Convert text to speech using OpenAI's API format.
+
+Request:
+```json
+{
+    "model": "tts-1",          // or "tts-1-hd"
+    "input": "Text to speak",
+    "voice": "alloy",          // alloy, echo, fable, onyx, nova, or shimmer
+    "response_format": "mp3",   // mp3, opus, aac, flac, or wav
+    "speed": 1.0               // 0.25 to 4.0
+}
+```
+
+Example:
+```bash
+curl -X POST --insecure https://localhost:8000/v1/audio/speech \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "tts-1",
+    "input": "Hello world!",
+    "voice": "alloy",
+    "response_format": "mp3"
+  }' \
+  --output speech.mp3
+```
+
+Python Example:
+```python
+import requests
+import warnings
+warnings.filterwarnings('ignore')  # For self-signed certificate
+
+url = "https://localhost:8000/v1/audio/speech"
+headers = {"Authorization": f"Bearer {api_key}"}  # Optional if OPENAI_API_KEY not set
+payload = {
+    "model": "tts-1",
+    "input": "Hello world!",
+    "voice": "alloy",
+    "response_format": "mp3"
+}
+
+response = requests.post(url, json=payload, headers=headers, verify=False)
+with open("speech.mp3", "wb") as f:
+    f.write(response.content)
+```
+
+#### GET /v1/models
+List available TTS models in OpenAI's format.
+
+Response:
+```json
+{
+    "object": "list",
+    "data": [
+        {
+            "id": "tts-1",
+            "object": "model",
+            "created": 1699488000,
+            "owned_by": "f5-tts",
+            "permission": [],
+            "root": "tts-1",
+            "parent": null
+        },
+        {
+            "id": "tts-1-hd",
+            "object": "model",
+            "created": 1699488000,
+            "owned_by": "f5-tts",
+            "permission": [],
+            "root": "tts-1-hd",
+            "parent": null
+        }
+    ]
+}
+```
+
 ## API Documentation
 
 Once the server is running, you can access the interactive API documentation at:
@@ -299,6 +399,12 @@ Note: When accessing the API documentation or making API calls:
 - Text-to-speech conversion using F5-TTS Base model
 - Multiple voice options from LibriSpeech dataset
 - Voice cloning capability
+- OpenAI API compatibility
+  * Drop-in replacement for OpenAI's TTS API
+  * Supports all OpenAI voices (alloy, echo, fable, etc.)
+  * Compatible with OpenAI client libraries
+  * Optional API key authentication
+  * Multiple audio format support (mp3, opus, aac, flac, wav)
 - Comprehensive error handling
 - Detailed logging
 - CORS support for web applications
